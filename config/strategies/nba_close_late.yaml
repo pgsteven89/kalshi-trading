@@ -1,0 +1,33 @@
+# NBA Close Game Late Strategy
+# Trade tight games in the 4th quarter - these have high volatility
+
+name: nba_close_late
+description: Buy YES on leading team in close 4th quarter games
+enabled: true
+
+targets:
+  - sport: nba
+
+entry_conditions:
+  # Game must be close (lead of 3-8 points)
+  - type: score_margin
+    params:
+      min_margin: 3
+      direction: leading
+
+  # Must be in 4th quarter with under 5 minutes
+  - type: game_time
+    params:
+      min_period: 4
+      max_clock: 300  # 5 minutes
+
+trade:
+  side: yes
+  action: buy
+  size: 8
+  price_type: limit
+  limit_offset: 2
+
+risk:
+  max_position: 40
+  stop_loss: 100

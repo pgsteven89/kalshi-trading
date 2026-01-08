@@ -1,0 +1,26 @@
+# Market Mapping Configuration
+# Maps ESPN events to Kalshi market tickers
+
+# Pattern-based matching
+patterns:
+  # NFL games follow this pattern
+  - sport: nfl
+    event_format: "{away_team} at {home_team}"
+    kalshi_format: "NFL-{game_id}-{team}"
+
+  # NBA games
+  - sport: nba
+    event_format: "{away_team} at {home_team}"
+    kalshi_format: "NBA-{game_id}-{team}"
+
+  # College Football
+  - sport: college-football
+    event_format: "{away_team} at {home_team}"
+    kalshi_format: "CFB-{game_id}-{team}"
+
+# Explicit mappings for special cases
+# Use when automatic pattern matching doesn't work
+explicit: []
+  # Example:
+  # - espn_event_id: "401547417"
+  #   kalshi_ticker: "NFL-2426-KC"

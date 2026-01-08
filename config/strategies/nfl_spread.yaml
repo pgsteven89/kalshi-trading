@@ -1,0 +1,37 @@
+# NFL Leading Late Strategy
+# Buy YES contracts when a team is leading by 7+ points in the 4th quarter
+
+name: nfl_leading_late
+description: Buy YES when team is leading by 7+ in 4th quarter
+enabled: true
+
+# Target NFL games only
+targets:
+  - sport: nfl
+
+# Entry conditions - ALL must be true
+entry_conditions:
+  # Team must be leading by at least 7 points
+  - type: score_margin
+    params:
+      min_margin: 7
+      direction: leading
+
+  # Must be in 4th quarter
+  - type: game_time
+    params:
+      min_period: 4
+      max_clock: 900  # Full 4th quarter (15 minutes)
+
+# Trade parameters
+trade:
+  side: yes
+  action: buy
+  size: 10
+  price_type: limit
+  limit_offset: 2  # 2 cents above current ask
+
+# Risk management overrides
+risk:
+  max_position: 50       # Max 50 contracts in this strategy
+  stop_loss: 100         # Exit if losing $1.00

@@ -1,0 +1,32 @@
+# NBA Blowout Strategy  
+# Similar to NFL - buy on commanding leads
+
+name: nba_blowout
+description: Buy YES when team leads by 15+ in 4th quarter
+enabled: true
+
+targets:
+  - sport: nba
+
+entry_conditions:
+  # NBA games - 15 point lead is substantial
+  - type: score_margin
+    params:
+      min_margin: 15
+      direction: leading
+
+  # 4th quarter
+  - type: game_time
+    params:
+      min_period: 4
+
+trade:
+  side: yes
+  action: buy
+  size: 12
+  price_type: limit
+  limit_offset: 2
+
+risk:
+  max_position: 50
+  stop_loss: 120

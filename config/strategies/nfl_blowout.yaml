@@ -1,0 +1,32 @@
+# NFL Blowout Strategy
+# Buy YES on leading team when they have a commanding lead in the 2nd half
+
+name: nfl_blowout
+description: Buy YES contracts when team leads by 14+ in 2nd half
+enabled: true
+
+targets:
+  - sport: nfl
+
+entry_conditions:
+  # Team must be leading by at least 14 points (2 TDs)
+  - type: score_margin
+    params:
+      min_margin: 14
+      direction: leading
+
+  # Must be in 3rd or 4th quarter
+  - type: game_time
+    params:
+      min_period: 3
+
+trade:
+  side: yes
+  action: buy
+  size: 15
+  price_type: limit
+  limit_offset: 3
+
+risk:
+  max_position: 50
+  stop_loss: 150

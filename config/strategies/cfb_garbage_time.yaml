@@ -1,0 +1,33 @@
+# College Football Garbage Time Strategy
+# Fade huge leads - trailing teams often score meaningless late points
+
+name: cfb_garbage_time
+description: Buy NO on leading team when blowout may tighten late
+enabled: true
+
+targets:
+  - sport: college-football
+
+entry_conditions:
+  # Team must be leading by 21+ points (3 TDs)
+  - type: score_margin
+    params:
+      min_margin: 21
+      direction: leading
+      
+  # 4th quarter only (garbage time window)
+  - type: game_time
+    params:
+      min_period: 4
+      max_clock: 600  # Under 10 minutes
+
+trade:
+  side: no           # Betting AGAINST the leading team
+  action: buy
+  size: 5
+  price_type: limit
+  limit_offset: 1
+
+risk:
+  max_position: 25   # Smaller position - contrarian bet
+  stop_loss: 75

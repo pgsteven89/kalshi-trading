@@ -1,0 +1,33 @@
+# College Football Leading Late Strategy
+# Buy YES on team with solid lead late in the game
+
+name: cfb_leading_late
+description: Buy YES when team leads by 10+ in 4th quarter
+enabled: true
+
+targets:
+  - sport: college-football
+
+entry_conditions:
+  # 10+ point lead (more than one score)
+  - type: score_margin
+    params:
+      min_margin: 10
+      direction: leading
+
+  # 4th quarter, under 8 minutes
+  - type: game_time
+    params:
+      min_period: 4
+      max_clock: 480
+
+trade:
+  side: yes
+  action: buy
+  size: 10
+  price_type: limit
+  limit_offset: 2
+
+risk:
+  max_position: 50
+  stop_loss: 100
