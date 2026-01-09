@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -7,12 +8,24 @@
     <script src="https://unpkg.com/htmx.org@2.0.4"></script>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        .card { @apply bg-gray-800 rounded-lg p-4 shadow-lg; }
-        .status-badge { @apply px-2 py-1 rounded text-xs font-bold; }
-        .running { @apply bg-green-600; }
-        .stopped { @apply bg-red-600; }
+        .card {
+            @apply bg-gray-800 rounded-lg p-4 shadow-lg;
+        }
+
+        .status-badge {
+            @apply px-2 py-1 rounded text-xs font-bold;
+        }
+
+        .running {
+            @apply bg-green-600;
+        }
+
+        .stopped {
+            @apply bg-red-600;
+        }
     </style>
 </head>
+
 <body class="bg-gray-900 text-white min-h-screen">
     <!-- Header -->
     <header class="bg-gray-800 border-b border-gray-700 p-4">
@@ -31,19 +44,21 @@
             <div class="card">
                 <div class="flex justify-between items-center">
                     <span class="text-gray-400">Data Collector</span>
-                    <span id="collector-status" class="status-badge {{ 'running' if collector_running else 'stopped' }}">
+                    <span id="collector-status"
+                        class="status-badge {{ 'running' if collector_running else 'stopped' }}">
                         {{ 'RUNNING' if collector_running else 'STOPPED' }}
                     </span>
                 </div>
+                <div class="text-sm text-gray-500 mt-1">
+                    Snapshots: <span id="snapshots-count">0</span>
+                </div>
                 <div class="mt-3 flex gap-2">
-                    <button hx-post="/api/collector/start" hx-swap="none" 
-                            onclick="updateCollectorStatus(true)"
-                            class="px-3 py-1 bg-green-600 hover:bg-green-700 rounded text-sm">
+                    <button hx-post="/api/collector/start" hx-swap="none" onclick="updateCollectorStatus(true)"
+                        class="px-3 py-1 bg-green-600 hover:bg-green-700 rounded text-sm">
                         Start
                     </button>
-                    <button hx-post="/api/collector/stop" hx-swap="none"
-                            onclick="updateCollectorStatus(false)"
-                            class="px-3 py-1 bg-red-600 hover:bg-red-700 rounded text-sm">
+                    <button hx-post="/api/collector/stop" hx-swap="none" onclick="updateCollectorStatus(false)"
+                        class="px-3 py-1 bg-red-600 hover:bg-red-700 rounded text-sm">
                         Stop
                     </button>
                 </div>
@@ -57,15 +72,14 @@
                         {{ 'RUNNING' if trading_running else 'STOPPED' }}
                     </span>
                 </div>
+                <div class="text-sm text-gray-500 mt-1">Mode: Dry Run</div>
                 <div class="mt-3 flex gap-2">
-                    <button hx-post="/api/trading/start" hx-swap="none"
-                            onclick="updateTradingStatus(true)"
-                            class="px-3 py-1 bg-green-600 hover:bg-green-700 rounded text-sm">
+                    <button hx-post="/api/trading/start" hx-swap="none" onclick="updateTradingStatus(true)"
+                        class="px-3 py-1 bg-green-600 hover:bg-green-700 rounded text-sm">
                         Start
                     </button>
-                    <button hx-post="/api/trading/stop" hx-swap="none"
-                            onclick="updateTradingStatus(false)"
-                            class="px-3 py-1 bg-red-600 hover:bg-red-700 rounded text-sm">
+                    <button hx-post="/api/trading/stop" hx-swap="none" onclick="updateTradingStatus(false)"
+                        class="px-3 py-1 bg-red-600 hover:bg-red-700 rounded text-sm">
                         Stop
                     </button>
                 </div>
@@ -87,14 +101,26 @@
         <!-- Live Games -->
         <div class="card">
             <div class="flex justify-between items-center mb-4">
-                <h2 class="text-xl font-semibold text-blue-400">🏈 Live Games</h2>
-                <button onclick="refreshGames()" 
-                        class="px-3 py-1 bg-blue-600 hover:bg-blue-700 rounded text-sm">
+                <h2 class="text-xl font-semibold text-green-400">🔴 Live Games</h2>
+                <button onclick="refreshGames()" class="px-3 py-1 bg-blue-600 hover:bg-blue-700 rounded text-sm">
                     Refresh
                 </button>
             </div>
             <div id="games-container" class="space-y-4">
                 <div class="text-gray-500 text-center py-8">Loading games...</div>
+            </div>
+        </div>
+
+        <!-- Scheduled Games -->
+        <div class="card">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-xl font-semibold text-blue-400">📅 Upcoming Games</h2>
+                <button onclick="refreshScheduled()" class="px-3 py-1 bg-blue-600 hover:bg-blue-700 rounded text-sm">
+                    Refresh
+                </button>
+            </div>
+            <div id="scheduled-container" class="space-y-4">
+                <div class="text-gray-500 text-center py-8">Loading scheduled games...</div>
             </div>
         </div>
 
@@ -117,7 +143,9 @@
                         </tr>
                     </thead>
                     <tbody id="trades-body" class="text-gray-300">
-                        <tr><td colspan="9" class="text-center py-4 text-gray-500">No trades yet</td></tr>
+                        <tr>
+                            <td colspan="9" class="text-center py-4 text-gray-500">No trades yet</td>
+                        </tr>
                     </tbody>
                 </table>
             </div>
@@ -159,7 +187,7 @@
                 const res = await fetch('/api/games');
                 const data = await res.json();
                 const container = document.getElementById('games-container');
-                
+
                 if (data.error) {
                     container.innerHTML = `<div class="text-red-400">${data.error}</div>`;
                     return;
@@ -168,11 +196,11 @@
                 let html = '';
                 for (const [sport, games] of Object.entries(data.games)) {
                     if (games.length === 0) continue;
-                    
+
                     html += `<div class="mb-4">
                         <h3 class="text-lg font-semibold text-gray-300 mb-2">${sport.toUpperCase()}</h3>
                         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">`;
-                    
+
                     for (const game of games) {
                         const marginClass = game.margin > 0 ? 'text-green-400' : game.margin < 0 ? 'text-red-400' : '';
                         html += `
@@ -205,7 +233,7 @@
                 const res = await fetch('/api/trades?limit=20');
                 const data = await res.json();
                 const tbody = document.getElementById('trades-body');
-                
+
                 if (!data.trades || data.trades.length === 0) {
                     tbody.innerHTML = '<tr><td colspan="9" class="text-center py-4 text-gray-500">No trades yet</td></tr>';
                     return;
@@ -214,9 +242,9 @@
                 let html = '';
                 for (const trade of data.trades) {
                     const pnlClass = trade.pnl > 0 ? 'text-green-400' : trade.pnl < 0 ? 'text-red-400' : '';
-                    const statusClass = trade.status === 'executed' ? 'text-green-400' : 
-                                        trade.status === 'dry_run' ? 'text-yellow-400' : 'text-red-400';
-                    
+                    const statusClass = trade.status === 'executed' ? 'text-green-400' :
+                        trade.status === 'dry_run' ? 'text-yellow-400' : 'text-red-400';
+
                     html += `<tr class="border-b border-gray-700">
                         <td class="py-2">${new Date(trade.timestamp).toLocaleTimeString()}</td>
                         <td>${trade.sport}</td>
@@ -240,7 +268,7 @@
             try {
                 const res = await fetch('/api/performance');
                 const data = await res.json();
-                
+
                 // Update daily P&L
                 const dailyPnl = document.getElementById('daily-pnl');
                 const pnl = data.overall?.total_pnl_dollars || 0;
@@ -253,7 +281,7 @@
                 // Strategy performance
                 const container = document.getElementById('strategy-performance');
                 const strategies = data.by_strategy || {};
-                
+
                 if (Object.keys(strategies).length === 0) {
                     container.innerHTML = '<div class="text-gray-500">No strategy data yet</div>';
                     return;
@@ -280,14 +308,82 @@
             }
         }
 
+        // Fetch and display scheduled games
+        async function refreshScheduled() {
+            try {
+                const res = await fetch('/api/games/scheduled');
+                const data = await res.json();
+                const container = document.getElementById('scheduled-container');
+
+                if (data.error) {
+                    container.innerHTML = `<div class="text-red-400">${data.error}</div>`;
+                    return;
+                }
+
+                let html = '';
+                let totalGames = 0;
+                for (const [sport, games] of Object.entries(data.games)) {
+                    if (games.length === 0) continue;
+                    totalGames += games.length;
+
+                    html += `<div class="mb-4">
+                        <h3 class="text-lg font-semibold text-gray-300 mb-2">${sport.toUpperCase()}</h3>
+                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">`;
+
+                    for (const game of games) {
+                        html += `
+                            <div class="bg-gray-700 rounded p-3">
+                                <div class="flex justify-between items-center">
+                                    <span class="font-bold">${game.away_team} @ ${game.home_team}</span>
+                                    <span class="text-sm text-yellow-400">Scheduled</span>
+                                </div>
+                            </div>`;
+                    }
+                    html += '</div></div>';
+                }
+
+                container.innerHTML = html || '<div class="text-gray-500 text-center py-8">No upcoming games</div>';
+            } catch (e) {
+                console.error('Error fetching scheduled games:', e);
+            }
+        }
+
+        // Fetch system status
+        async function refreshStatus() {
+            try {
+                const res = await fetch('/api/status');
+                const data = await res.json();
+
+                // Update collector status
+                const collectorEl = document.getElementById('collector-status');
+                collectorEl.textContent = data.collector_running ? 'RUNNING' : 'STOPPED';
+                collectorEl.className = 'status-badge ' + (data.collector_running ? 'running' : 'stopped');
+
+                // Update trading status
+                const tradingEl = document.getElementById('trading-status');
+                tradingEl.textContent = data.trading_running ? 'RUNNING' : 'STOPPED';
+                tradingEl.className = 'status-badge ' + (data.trading_running ? 'running' : 'stopped');
+
+                // Update snapshots count
+                document.getElementById('snapshots-count').textContent = data.snapshots_collected || 0;
+            } catch (e) {
+                console.error('Error fetching status:', e);
+            }
+        }
+
         // Initial load and periodic refresh
         refreshGames();
+        refreshScheduled();
         refreshTrades();
         refreshPerformance();
-        
+        refreshStatus();
+
         setInterval(refreshGames, 15000);
+        setInterval(refreshScheduled, 60000);
         setInterval(refreshTrades, 10000);
         setInterval(refreshPerformance, 30000);
+        setInterval(refreshStatus, 5000);
     </script>
 </body>
+
 </html>

@@ -6,14 +6,14 @@ from datetime import datetime
 from pathlib import Path
 from typing import AsyncGenerator
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, BackgroundTasks
 from fastapi.responses import HTMLResponse
-from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from sse_starlette.sse import EventSourceResponse
 
 from kalshi_trading.clients.espn import ESPNClient, Sport
 from kalshi_trading.monitoring.database import TradingDatabase
+
 
 # App state
 class AppState:
@@ -21,9 +21,25 @@ class AppState:
     espn: ESPNClient
     collector_running: bool = False
     trading_running: bool = False
+    collector_task: asyncio.Task | None = None
+    snapshots_collected: int = 0
 
 
 state = AppState()
+
+
+async def collector_loop() -> None:
+    """Background task that collects game data."""
+    while state.collector_running:
+        try:
+            games = await state.espn.get_all_live_games()
+            for sport, game_list in games.items():
+                for game in game_list:
+                    state.db.insert_game_state(game)
+                    state.snapshots_collected += 1
+        except Exception:
+            pass
+        await asyncio.sleep(30)
 
 
 @asynccontextmanager
@@ -34,6 +50,10 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     state.espn = ESPNClient()
     await state.espn.__aenter__()
     yield
+    # Cleanup
+    state.collector_running = False
+    if state.collector_task:
+        state.collector_task.cancel()
     await state.espn.__aexit__(None, None, None)
 
 
@@ -95,6 +115,34 @@ async def get_live_games() -> dict:
         return {"error": str(e), "games": {}}
 
 
+@app.get("/api/games/scheduled")
+async def get_scheduled_games() -> dict:
+    """Get upcoming scheduled games from ESPN."""
+    try:
+        result = {}
+        for sport in [Sport.NFL, Sport.NBA, Sport.COLLEGE_FOOTBALL]:
+            try:
+                scoreboard = await state.espn.get_scoreboard(sport)
+                scheduled = []
+                for game in scoreboard:
+                    # Include games that haven't started yet
+                    if game.status.value == "pre":
+                        scheduled.append({
+                            "event_id": game.event_id,
+                            "matchup": game.matchup,
+                            "home_team": game.home_team.abbreviation,
+                            "away_team": game.away_team.abbreviation,
+                            "status": game.status.value,
+                        })
+                if scheduled:
+                    result[sport.value] = scheduled
+            except Exception:
+                continue
+        return {"games": result, "timestamp": datetime.now().isoformat()}
+    except Exception as e:
+        return {"error": str(e), "games": {}}
+
+
 @app.get("/api/trades")
 async def get_recent_trades(limit: int = 20) -> dict:
     """Get recent trades from database."""
@@ -119,42 +167,9 @@ async def get_status() -> dict:
     return {
         "collector_running": state.collector_running,
         "trading_running": state.trading_running,
+        "snapshots_collected": state.snapshots_collected,
         "timestamp": datetime.now().isoformat(),
     }
-
-
-# --- Server-Sent Events for Live Updates ---
-
-
-@app.get("/api/stream/games")
-async def stream_games(request: Request) -> EventSourceResponse:
-    """Stream live game updates."""
-
-    async def event_generator() -> AsyncGenerator[dict, None]:
-        while True:
-            if await request.is_disconnected():
-                break
-            try:
-                games = await state.espn.get_all_live_games()
-                data = {}
-                for sport, game_list in games.items():
-                    data[sport.value] = [
-                        {
-                            "matchup": g.matchup,
-                            "home_score": g.home_score,
-                            "away_score": g.away_score,
-                            "period": g.period,
-                            "clock": g.clock_display,
-                            "margin": g.margin,
-                        }
-                        for g in game_list
-                    ]
-                yield {"event": "games", "data": str(data)}
-            except Exception:
-                pass
-            await asyncio.sleep(10)
-
-    return EventSourceResponse(event_generator())
 
 
 # --- Controls ---
@@ -162,23 +177,34 @@ async def stream_games(request: Request) -> EventSourceResponse:
 
 @app.post("/api/collector/start")
 async def start_collector() -> dict:
-    """Start data collector."""
+    """Start data collector in background."""
+    if state.collector_running:
+        return {"status": "already_running"}
+    
     state.collector_running = True
+    state.collector_task = asyncio.create_task(collector_loop())
     return {"status": "started"}
 
 
 @app.post("/api/collector/stop")
 async def stop_collector() -> dict:
     """Stop data collector."""
+    if not state.collector_running:
+        return {"status": "already_stopped"}
+    
     state.collector_running = False
+    if state.collector_task:
+        state.collector_task.cancel()
+        state.collector_task = None
     return {"status": "stopped"}
 
 
 @app.post("/api/trading/start")
 async def start_trading() -> dict:
-    """Start trading engine."""
+    """Start trading engine (dry run mode)."""
     state.trading_running = True
-    return {"status": "started"}
+    # TODO: Implement actual trading engine background task
+    return {"status": "started", "mode": "dry_run"}
 
 
 @app.post("/api/trading/stop")
