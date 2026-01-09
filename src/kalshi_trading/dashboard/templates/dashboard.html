@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ title }}</title>
+    <script src="https://unpkg.com/htmx.org@2.0.4"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .card { @apply bg-gray-800 rounded-lg p-4 shadow-lg; }
+        .status-badge { @apply px-2 py-1 rounded text-xs font-bold; }
+        .running { @apply bg-green-600; }
+        .stopped { @apply bg-red-600; }
+    </style>
+</head>
+<body class="bg-gray-900 text-white min-h-screen">
+    <!-- Header -->
+    <header class="bg-gray-800 border-b border-gray-700 p-4">
+        <div class="container mx-auto flex justify-between items-center">
+            <h1 class="text-2xl font-bold text-blue-400">📈 Kalshi Trading Dashboard</h1>
+            <div class="flex gap-4 items-center">
+                <span id="clock" class="text-gray-400"></span>
+            </div>
+        </div>
+    </header>
+
+    <main class="container mx-auto p-6 space-y-6">
+        <!-- Status Bar -->
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <!-- Collector Status -->
+            <div class="card">
+                <div class="flex justify-between items-center">
+                    <span class="text-gray-400">Data Collector</span>
+                    <span id="collector-status" class="status-badge {{ 'running' if collector_running else 'stopped' }}">
+                        {{ 'RUNNING' if collector_running else 'STOPPED' }}
+                    </span>
+                </div>
+                <div class="mt-3 flex gap-2">
+                    <button hx-post="/api/collector/start" hx-swap="none" 
+                            onclick="updateCollectorStatus(true)"
+                            class="px-3 py-1 bg-green-600 hover:bg-green-700 rounded text-sm">
+                        Start
+                    </button>
+                    <button hx-post="/api/collector/stop" hx-swap="none"
+                            onclick="updateCollectorStatus(false)"
+                            class="px-3 py-1 bg-red-600 hover:bg-red-700 rounded text-sm">
+                        Stop
+                    </button>
+                </div>
+            </div>
+
+            <!-- Trading Status -->
+            <div class="card">
+                <div class="flex justify-between items-center">
+                    <span class="text-gray-400">Trading Engine</span>
+                    <span id="trading-status" class="status-badge {{ 'running' if trading_running else 'stopped' }}">
+                        {{ 'RUNNING' if trading_running else 'STOPPED' }}
+                    </span>
+                </div>
+                <div class="mt-3 flex gap-2">
+                    <button hx-post="/api/trading/start" hx-swap="none"
+                            onclick="updateTradingStatus(true)"
+                            class="px-3 py-1 bg-green-600 hover:bg-green-700 rounded text-sm">
+                        Start
+                    </button>
+                    <button hx-post="/api/trading/stop" hx-swap="none"
+                            onclick="updateTradingStatus(false)"
+                            class="px-3 py-1 bg-red-600 hover:bg-red-700 rounded text-sm">
+                        Stop
+                    </button>
+                </div>
+            </div>
+
+            <!-- P&L Today -->
+            <div class="card">
+                <div class="text-gray-400 text-sm">Today's P&L</div>
+                <div id="daily-pnl" class="text-2xl font-bold text-green-400">$0.00</div>
+            </div>
+
+            <!-- Total Trades -->
+            <div class="card">
+                <div class="text-gray-400 text-sm">Total Trades</div>
+                <div id="total-trades" class="text-2xl font-bold">0</div>
+            </div>
+        </div>
+
+        <!-- Live Games -->
+        <div class="card">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-xl font-semibold text-blue-400">🏈 Live Games</h2>
+                <button onclick="refreshGames()" 
+                        class="px-3 py-1 bg-blue-600 hover:bg-blue-700 rounded text-sm">
+                    Refresh
+                </button>
+            </div>
+            <div id="games-container" class="space-y-4">
+                <div class="text-gray-500 text-center py-8">Loading games...</div>
+            </div>
+        </div>
+
+        <!-- Recent Trades -->
+        <div class="card">
+            <h2 class="text-xl font-semibold text-blue-400 mb-4">📊 Recent Trades</h2>
+            <div id="trades-container" class="overflow-x-auto">
+                <table class="w-full text-sm">
+                    <thead class="text-gray-400 border-b border-gray-700">
+                        <tr>
+                            <th class="text-left py-2">Time</th>
+                            <th class="text-left py-2">Sport</th>
+                            <th class="text-left py-2">Ticker</th>
+                            <th class="text-left py-2">Signal</th>
+                            <th class="text-left py-2">Side</th>
+                            <th class="text-right py-2">Size</th>
+                            <th class="text-right py-2">Price</th>
+                            <th class="text-right py-2">P&L</th>
+                            <th class="text-left py-2">Status</th>
+                        </tr>
+                    </thead>
+                    <tbody id="trades-body" class="text-gray-300">
+                        <tr><td colspan="9" class="text-center py-4 text-gray-500">No trades yet</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Performance by Strategy -->
+        <div class="card">
+            <h2 class="text-xl font-semibold text-blue-400 mb-4">📈 Strategy Performance</h2>
+            <div id="strategy-performance" class="grid grid-cols-2 md:grid-cols-3 gap-4">
+                <div class="text-gray-500 text-center py-4">Loading...</div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        // Update clock
+        function updateClock() {
+            document.getElementById('clock').textContent = new Date().toLocaleString();
+        }
+        setInterval(updateClock, 1000);
+        updateClock();
+
+        // Status badge updates
+        function updateCollectorStatus(running) {
+            const el = document.getElementById('collector-status');
+            el.textContent = running ? 'RUNNING' : 'STOPPED';
+            el.className = 'status-badge ' + (running ? 'running' : 'stopped');
+        }
+
+        function updateTradingStatus(running) {
+            const el = document.getElementById('trading-status');
+            el.textContent = running ? 'RUNNING' : 'STOPPED';
+            el.className = 'status-badge ' + (running ? 'running' : 'stopped');
+        }
+
+        // Fetch and display games
+        async function refreshGames() {
+            try {
+                const res = await fetch('/api/games');
+                const data = await res.json();
+                const container = document.getElementById('games-container');
+                
+                if (data.error) {
+                    container.innerHTML = `<div class="text-red-400">${data.error}</div>`;
+                    return;
+                }
+
+                let html = '';
+                for (const [sport, games] of Object.entries(data.games)) {
+                    if (games.length === 0) continue;
+                    
+                    html += `<div class="mb-4">
+                        <h3 class="text-lg font-semibold text-gray-300 mb-2">${sport.toUpperCase()}</h3>
+                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">`;
+                    
+                    for (const game of games) {
+                        const marginClass = game.margin > 0 ? 'text-green-400' : game.margin < 0 ? 'text-red-400' : '';
+                        html += `
+                            <div class="bg-gray-700 rounded p-3">
+                                <div class="flex justify-between items-center">
+                                    <span class="font-bold">${game.away_team} @ ${game.home_team}</span>
+                                    <span class="text-sm text-gray-400">${game.status}</span>
+                                </div>
+                                <div class="flex justify-between items-center mt-2">
+                                    <span class="text-2xl font-bold">${game.away_score} - ${game.home_score}</span>
+                                    <span class="text-gray-400">${game.clock || ''} ${game.period ? 'P' + game.period : ''}</span>
+                                </div>
+                                <div class="text-sm ${marginClass} mt-1">
+                                    Margin: ${game.margin > 0 ? '+' : ''}${game.margin}
+                                </div>
+                            </div>`;
+                    }
+                    html += '</div></div>';
+                }
+
+                container.innerHTML = html || '<div class="text-gray-500 text-center py-8">No live games</div>';
+            } catch (e) {
+                console.error('Error fetching games:', e);
+            }
+        }
+
+        // Fetch and display trades
+        async function refreshTrades() {
+            try {
+                const res = await fetch('/api/trades?limit=20');
+                const data = await res.json();
+                const tbody = document.getElementById('trades-body');
+                
+                if (!data.trades || data.trades.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="9" class="text-center py-4 text-gray-500">No trades yet</td></tr>';
+                    return;
+                }
+
+                let html = '';
+                for (const trade of data.trades) {
+                    const pnlClass = trade.pnl > 0 ? 'text-green-400' : trade.pnl < 0 ? 'text-red-400' : '';
+                    const statusClass = trade.status === 'executed' ? 'text-green-400' : 
+                                        trade.status === 'dry_run' ? 'text-yellow-400' : 'text-red-400';
+                    
+                    html += `<tr class="border-b border-gray-700">
+                        <td class="py-2">${new Date(trade.timestamp).toLocaleTimeString()}</td>
+                        <td>${trade.sport}</td>
+                        <td>${trade.ticker}</td>
+                        <td>${trade.signal_type}</td>
+                        <td>${trade.side}</td>
+                        <td class="text-right">${trade.size}</td>
+                        <td class="text-right">${trade.price}¢</td>
+                        <td class="text-right ${pnlClass}">$${(trade.pnl / 100).toFixed(2)}</td>
+                        <td class="${statusClass}">${trade.status}</td>
+                    </tr>`;
+                }
+                tbody.innerHTML = html;
+            } catch (e) {
+                console.error('Error fetching trades:', e);
+            }
+        }
+
+        // Fetch and display performance
+        async function refreshPerformance() {
+            try {
+                const res = await fetch('/api/performance');
+                const data = await res.json();
+                
+                // Update daily P&L
+                const dailyPnl = document.getElementById('daily-pnl');
+                const pnl = data.overall?.total_pnl_dollars || 0;
+                dailyPnl.textContent = `$${pnl.toFixed(2)}`;
+                dailyPnl.className = 'text-2xl font-bold ' + (pnl >= 0 ? 'text-green-400' : 'text-red-400');
+
+                // Update total trades
+                document.getElementById('total-trades').textContent = data.overall?.total_trades || 0;
+
+                // Strategy performance
+                const container = document.getElementById('strategy-performance');
+                const strategies = data.by_strategy || {};
+                
+                if (Object.keys(strategies).length === 0) {
+                    container.innerHTML = '<div class="text-gray-500">No strategy data yet</div>';
+                    return;
+                }
+
+                let html = '';
+                for (const [name, perf] of Object.entries(strategies)) {
+                    const winRate = (perf.win_rate * 100).toFixed(1);
+                    const pnlClass = perf.total_pnl >= 0 ? 'text-green-400' : 'text-red-400';
+                    html += `
+                        <div class="bg-gray-700 rounded p-3">
+                            <div class="font-bold text-gray-200">${name}</div>
+                            <div class="text-sm text-gray-400 mt-1">
+                                ${perf.total_trades} trades | ${winRate}% win rate
+                            </div>
+                            <div class="text-lg font-bold ${pnlClass} mt-1">
+                                $${perf.total_pnl_dollars.toFixed(2)}
+                            </div>
+                        </div>`;
+                }
+                container.innerHTML = html;
+            } catch (e) {
+                console.error('Error fetching performance:', e);
+            }
+        }
+
+        // Initial load and periodic refresh
+        refreshGames();
+        refreshTrades();
+        refreshPerformance();
+        
+        setInterval(refreshGames, 15000);
+        setInterval(refreshTrades, 10000);
+        setInterval(refreshPerformance, 30000);
+    </script>
+</body>
+</html>

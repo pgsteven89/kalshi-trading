@@ -74,6 +74,22 @@ Examples:
     )
     add_backtest_args(backtest_parser)
 
+    # Dashboard command
+    dashboard_parser = subparsers.add_parser(
+        "dashboard",
+        help="Launch the web dashboard UI",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  # Start dashboard on default port
+  kalshi-trading dashboard
+
+  # Custom port
+  kalshi-trading dashboard --port 3000
+        """,
+    )
+    add_dashboard_args(dashboard_parser)
+
     return parser
 
 
@@ -187,6 +203,22 @@ def add_backtest_args(parser: argparse.ArgumentParser) -> None:
         type=str,
         choices=["nfl", "nba", "college-football"],
         help="Filter by sport",
+    )
+
+
+def add_dashboard_args(parser: argparse.ArgumentParser) -> None:
+    """Add dashboard arguments."""
+    parser.add_argument(
+        "--host",
+        type=str,
+        default="127.0.0.1",
+        help="Host to bind to (default: 127.0.0.1)",
+    )
+    parser.add_argument(
+        "--port",
+        type=int,
+        default=8000,
+        help="Port to bind to (default: 8000)",
     )
 
 
@@ -315,6 +347,17 @@ def cmd_backtest(args: argparse.Namespace) -> None:
     # Result is already printed by run_backtest
 
 
+def cmd_dashboard(args: argparse.Namespace) -> None:
+    """Run the web dashboard."""
+    from kalshi_trading.dashboard import run_server
+
+    print("\n🌐 Kalshi Trading Dashboard")
+    print(f"   URL: http://{args.host}:{args.port}")
+    print("\n   Press Ctrl+C to stop\n")
+
+    run_server(host=args.host, port=args.port)
+
+
 def main() -> None:
     """Main entry point."""
     parser = create_main_parser()
@@ -326,9 +369,11 @@ def main() -> None:
         cmd_collect(args)
     elif args.command == "backtest":
         cmd_backtest(args)
+    elif args.command == "dashboard":
+        cmd_dashboard(args)
     else:
         # Default to trade for backwards compatibility
-        if len(sys.argv) > 1 and not sys.argv[1] in ["trade", "collect", "backtest", "-h", "--help"]:
+        if len(sys.argv) > 1 and not sys.argv[1] in ["trade", "collect", "backtest", "dashboard", "-h", "--help"]:
             # Old-style usage, parse as trade command
             parser = argparse.ArgumentParser()
             add_trading_args(parser)

@@ -19,6 +19,10 @@ dependencies = [
     "cryptography>=42.0",      # RSA signing for Kalshi auth
     "pyyaml>=6.0",             # Strategy config files
     "structlog>=24.0",         # Structured logging
+    "fastapi>=0.115.0",        # Web API framework
+    "uvicorn>=0.32.0",         # ASGI server
+    "jinja2>=3.1.0",           # HTML templates
+    "sse-starlette>=2.0",      # Server-sent events
 ]
 
 [project.optional-dependencies]
