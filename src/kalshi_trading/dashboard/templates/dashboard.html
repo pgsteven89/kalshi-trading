@@ -32,6 +32,9 @@
         <div class="container mx-auto flex justify-between items-center">
             <h1 class="text-2xl font-bold text-blue-400">📈 Kalshi Trading Dashboard</h1>
             <div class="flex gap-4 items-center">
+                <span id="kalshi-status" class="text-sm px-2 py-1 rounded bg-gray-700 text-gray-400">
+                    Kalshi: Checking...
+                </span>
                 <span id="clock" class="text-gray-400"></span>
             </div>
         </div>
@@ -365,7 +368,20 @@
                 tradingEl.className = 'status-badge ' + (data.trading_running ? 'running' : 'stopped');
 
                 // Update snapshots count
-                document.getElementById('snapshots-count').textContent = data.snapshots_collected || 0;
+                const snapCount = data.snapshots_collected || 0;
+                const marketCount = data.market_snapshots_collected || 0;
+                document.getElementById('snapshots-count').textContent =
+                    `${snapCount} games, ${marketCount} prices`;
+
+                // Update Kalshi connection status
+                const kalshiEl = document.getElementById('kalshi-status');
+                if (data.kalshi_connected) {
+                    kalshiEl.textContent = 'Kalshi: Connected ✓';
+                    kalshiEl.className = 'text-sm px-2 py-1 rounded bg-green-700 text-green-100';
+                } else {
+                    kalshiEl.textContent = 'Kalshi: Not Connected';
+                    kalshiEl.className = 'text-sm px-2 py-1 rounded bg-gray-700 text-gray-400';
+                }
             } catch (e) {
                 console.error('Error fetching status:', e);
             }

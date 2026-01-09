@@ -1,17 +1,19 @@
 """FastAPI web dashboard for Kalshi Trading System."""
 
 import asyncio
+import os
 from contextlib import asynccontextmanager
 from datetime import datetime
 from pathlib import Path
 from typing import AsyncGenerator
 
-from fastapi import FastAPI, Request, BackgroundTasks
+from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from sse_starlette.sse import EventSourceResponse
 
 from kalshi_trading.clients.espn import ESPNClient, Sport
+from kalshi_trading.clients.kalshi import KalshiClient
 from kalshi_trading.monitoring.database import TradingDatabase
 
 
@@ -19,17 +21,30 @@ from kalshi_trading.monitoring.database import TradingDatabase
 class AppState:
     db: TradingDatabase
     espn: ESPNClient
+    kalshi: KalshiClient | None = None
     collector_running: bool = False
     trading_running: bool = False
     collector_task: asyncio.Task | None = None
     snapshots_collected: int = 0
+    market_snapshots_collected: int = 0
 
 
 state = AppState()
 
 
+def get_kalshi_credentials() -> tuple[str | None, Path | None, str]:
+    """Get Kalshi credentials from environment."""
+    key_id = os.environ.get("KALSHI_API_KEY_ID")
+    key_path_str = os.environ.get("KALSHI_PRIVATE_KEY_PATH")
+    env = os.environ.get("KALSHI_ENVIRONMENT", "sandbox")
+    
+    key_path = Path(key_path_str) if key_path_str else None
+    
+    return key_id, key_path, env
+
+
 async def collector_loop() -> None:
-    """Background task that collects game data."""
+    """Background task that collects game data and market prices."""
     while state.collector_running:
         try:
             games = await state.espn.get_all_live_games()
@@ -37,6 +52,30 @@ async def collector_loop() -> None:
                 for game in game_list:
                     state.db.insert_game_state(game)
                     state.snapshots_collected += 1
+                    
+                    # Collect Kalshi prices if available
+                    if state.kalshi:
+                        try:
+                            markets = await state.kalshi.get_markets(status="open")
+                            for market in markets.markets:
+                                # Match by team abbreviation
+                                ticker_upper = market.ticker.upper()
+                                if (game.home_team.abbreviation.upper() in ticker_upper or 
+                                    game.away_team.abbreviation.upper() in ticker_upper):
+                                    state.db.insert_market_snapshot(
+                                        event_id=game.event_id,
+                                        ticker=market.ticker,
+                                        sport=sport.value,
+                                        yes_bid=market.yes_bid,
+                                        yes_ask=market.yes_ask,
+                                        no_bid=market.no_bid,
+                                        no_ask=market.no_ask,
+                                        volume=market.volume,
+                                        open_interest=market.open_interest,
+                                    )
+                                    state.market_snapshots_collected += 1
+                        except Exception:
+                            pass  # Continue even if Kalshi fails
         except Exception:
             pass
         await asyncio.sleep(30)
@@ -45,16 +84,37 @@ async def collector_loop() -> None:
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """Initialize app state on startup."""
+    # Initialize database
     state.db = TradingDatabase()
     state.db.initialize()
+    
+    # Initialize ESPN client
     state.espn = ESPNClient()
     await state.espn.__aenter__()
+    
+    # Initialize Kalshi client if credentials available
+    key_id, key_path, env = get_kalshi_credentials()
+    if key_id and key_path and key_path.exists():
+        try:
+            state.kalshi = KalshiClient(
+                api_key_id=key_id,
+                private_key_path=key_path,
+                environment=env,
+            )
+            await state.kalshi.__aenter__()
+        except Exception as e:
+            print(f"Warning: Could not initialize Kalshi client: {e}")
+            state.kalshi = None
+    
     yield
+    
     # Cleanup
     state.collector_running = False
     if state.collector_task:
         state.collector_task.cancel()
     await state.espn.__aexit__(None, None, None)
+    if state.kalshi:
+        await state.kalshi.__aexit__(None, None, None)
 
 
 app = FastAPI(
@@ -168,6 +228,8 @@ async def get_status() -> dict:
         "collector_running": state.collector_running,
         "trading_running": state.trading_running,
         "snapshots_collected": state.snapshots_collected,
+        "market_snapshots_collected": state.market_snapshots_collected,
+        "kalshi_connected": state.kalshi is not None,
         "timestamp": datetime.now().isoformat(),
     }
 
@@ -183,7 +245,7 @@ async def start_collector() -> dict:
     
     state.collector_running = True
     state.collector_task = asyncio.create_task(collector_loop())
-    return {"status": "started"}
+    return {"status": "started", "kalshi_enabled": state.kalshi is not None}
 
 
 @app.post("/api/collector/stop")
