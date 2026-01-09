@@ -104,6 +104,22 @@ class TradingDatabase:
         updated_at TEXT DEFAULT CURRENT_TIMESTAMP
     );
 
+    -- Market snapshots table: Kalshi price data for backtesting
+    CREATE TABLE IF NOT EXISTS market_snapshots (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        timestamp TEXT NOT NULL,
+        event_id TEXT NOT NULL,
+        ticker TEXT NOT NULL,
+        sport TEXT NOT NULL,
+        yes_bid INTEGER NOT NULL,         -- in cents
+        yes_ask INTEGER NOT NULL,
+        no_bid INTEGER NOT NULL,
+        no_ask INTEGER NOT NULL,
+        volume INTEGER DEFAULT 0,
+        open_interest INTEGER DEFAULT 0,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    );
+
     -- Indexes for common queries
     CREATE INDEX IF NOT EXISTS idx_trades_timestamp ON trades(timestamp);
     CREATE INDEX IF NOT EXISTS idx_trades_strategy ON trades(strategy_name);
@@ -113,6 +129,9 @@ class TradingDatabase:
     CREATE INDEX IF NOT EXISTS idx_signals_strategy ON signals(strategy_name);
     CREATE INDEX IF NOT EXISTS idx_game_states_event ON game_states(event_id);
     CREATE INDEX IF NOT EXISTS idx_daily_summary_date ON daily_summary(date);
+    CREATE INDEX IF NOT EXISTS idx_market_snapshots_event ON market_snapshots(event_id);
+    CREATE INDEX IF NOT EXISTS idx_market_snapshots_ticker ON market_snapshots(ticker);
+    CREATE INDEX IF NOT EXISTS idx_market_snapshots_timestamp ON market_snapshots(timestamp);
     """
 
     def __init__(self, db_path: Path | str | None = None):
@@ -262,6 +281,68 @@ class TradingDatabase:
                 ),
             )
             return cursor.lastrowid or 0
+
+    def insert_market_snapshot(
+        self,
+        event_id: str,
+        ticker: str,
+        sport: str,
+        yes_bid: int,
+        yes_ask: int,
+        no_bid: int,
+        no_ask: int,
+        volume: int = 0,
+        open_interest: int = 0,
+    ) -> int:
+        """
+        Insert a market price snapshot.
+
+        Args:
+            event_id: ESPN event ID for correlation
+            ticker: Kalshi market ticker
+            sport: Sport type
+            yes_bid/yes_ask: YES side prices in cents
+            no_bid/no_ask: NO side prices in cents
+            volume: Trading volume
+            open_interest: Open interest
+
+        Returns:
+            Inserted row ID
+        """
+        with self._get_connection() as conn:
+            cursor = conn.execute(
+                """
+                INSERT INTO market_snapshots (
+                    timestamp, event_id, ticker, sport,
+                    yes_bid, yes_ask, no_bid, no_ask,
+                    volume, open_interest
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    datetime.now().isoformat(),
+                    event_id,
+                    ticker,
+                    sport,
+                    yes_bid,
+                    yes_ask,
+                    no_bid,
+                    no_ask,
+                    volume,
+                    open_interest,
+                ),
+            )
+            return cursor.lastrowid or 0
+
+    def get_market_snapshots_for_event(self, event_id: str) -> list[dict[str, Any]]:
+        """Get all market snapshots for an event."""
+        query = """
+            SELECT * FROM market_snapshots
+            WHERE event_id = ?
+            ORDER BY timestamp
+        """
+        with self._get_connection() as conn:
+            rows = conn.execute(query, (event_id,)).fetchall()
+            return [dict(row) for row in rows]
 
     # -- Analytics Queries --
 
