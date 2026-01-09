@@ -197,6 +197,7 @@ async def get_scheduled_games() -> dict:
                             "status": game.status.value,
                             "home_score": game.home_score,
                             "away_score": game.away_score,
+                            "start_time": game.start_time,
                         })
                 if scheduled:
                     result[sport.value] = scheduled

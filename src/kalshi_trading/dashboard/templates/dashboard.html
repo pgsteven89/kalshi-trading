@@ -334,18 +334,37 @@
                         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">`;
 
                     for (const game of games) {
+                        // Format start time
+                        let timeStr = '';
+                        if (game.start_time) {
+                            const date = new Date(game.start_time);
+                            timeStr = date.toLocaleTimeString('en-US', {
+                                hour: 'numeric',
+                                minute: '2-digit',
+                                hour12: true
+                            });
+                        }
+
+                        // Status badge
+                        let statusBadge = '';
+                        if (game.status === 'pre') {
+                            statusBadge = `<span class="text-sm text-yellow-400">${timeStr || 'Scheduled'}</span>`;
+                        } else if (game.status === 'in') {
+                            statusBadge = `<span class="text-sm text-green-400">🔴 LIVE ${game.away_score}-${game.home_score}</span>`;
+                        }
+
                         html += `
                             <div class="bg-gray-700 rounded p-3">
                                 <div class="flex justify-between items-center">
                                     <span class="font-bold">${game.away_team} @ ${game.home_team}</span>
-                                    <span class="text-sm text-yellow-400">Scheduled</span>
+                                    ${statusBadge}
                                 </div>
                             </div>`;
                     }
                     html += '</div></div>';
                 }
 
-                container.innerHTML = html || '<div class="text-gray-500 text-center py-8">No upcoming games</div>';
+                container.innerHTML = html || '<div class="text-gray-500 text-center py-8">No upcoming games today. Check back on game days!</div>';
             } catch (e) {
                 console.error('Error fetching scheduled games:', e);
             }

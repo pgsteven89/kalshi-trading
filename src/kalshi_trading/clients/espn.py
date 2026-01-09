@@ -49,6 +49,7 @@ class GameState:
     period: int  # Quarter/half number
     clock_seconds: float  # Time remaining in period
     status: GameStatus
+    start_time: str = ""  # ISO format game start time
 
     @property
     def margin(self) -> int:
@@ -215,6 +216,9 @@ class ESPNClient:
             clock_seconds = float(comp_status.get("clock", 0))
             period = int(comp_status.get("period", 0))
 
+            # Parse game start time
+            start_time = event.get("date", "")
+
             return GameState(
                 event_id=event["id"],
                 sport=sport.value,
@@ -225,6 +229,7 @@ class ESPNClient:
                 period=period,
                 clock_seconds=clock_seconds,
                 status=status,
+                start_time=start_time,
             )
 
         except (KeyError, ValueError, TypeError) as e:
