@@ -158,13 +158,13 @@ async def get_live_games() -> dict:
             result[sport.value] = [
                 {
                     "event_id": g.event_id,
-                    "matchup": g.matchup,
+                    "matchup": f"{g.away_team.abbreviation} @ {g.home_team.abbreviation}",
                     "home_team": g.home_team.abbreviation,
                     "away_team": g.away_team.abbreviation,
                     "home_score": g.home_score,
                     "away_score": g.away_score,
                     "period": g.period,
-                    "clock": g.clock_display,
+                    "clock": f"{int(g.clock_seconds // 60)}:{int(g.clock_seconds % 60):02d}",
                     "status": g.status.value,
                     "margin": g.margin,
                 }
@@ -180,25 +180,34 @@ async def get_scheduled_games() -> dict:
     """Get upcoming scheduled games from ESPN."""
     try:
         result = {}
+        total_checked = 0
         for sport in [Sport.NFL, Sport.NBA, Sport.COLLEGE_FOOTBALL]:
             try:
                 scoreboard = await state.espn.get_scoreboard(sport)
+                total_checked += len(scoreboard)
                 scheduled = []
                 for game in scoreboard:
-                    # Include games that haven't started yet
-                    if game.status.value == "pre":
+                    # Include games that haven't finished
+                    if game.status.value in ["pre", "in"]:
                         scheduled.append({
                             "event_id": game.event_id,
-                            "matchup": game.matchup,
+                            "matchup": f"{game.away_team.abbreviation} @ {game.home_team.abbreviation}",
                             "home_team": game.home_team.abbreviation,
                             "away_team": game.away_team.abbreviation,
                             "status": game.status.value,
+                            "home_score": game.home_score,
+                            "away_score": game.away_score,
                         })
                 if scheduled:
                     result[sport.value] = scheduled
-            except Exception:
+            except Exception as e:
+                print(f"Error fetching {sport.value}: {e}")
                 continue
-        return {"games": result, "timestamp": datetime.now().isoformat()}
+        return {
+            "games": result,
+            "total_checked": total_checked,
+            "timestamp": datetime.now().isoformat(),
+        }
     except Exception as e:
         return {"error": str(e), "games": {}}
 
