@@ -154,6 +154,19 @@
             </div>
         </div>
 
+        <!-- Market Prices -->
+        <div class="card">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-xl font-semibold text-purple-400">💰 Market Prices</h2>
+                <button onclick="refreshMarkets()" class="px-3 py-1 bg-purple-600 hover:bg-purple-700 rounded text-sm">
+                    Refresh
+                </button>
+            </div>
+            <div id="markets-container" class="space-y-2">
+                <div class="text-gray-500 text-center py-4">Loading markets...</div>
+            </div>
+        </div>
+
         <!-- Performance by Strategy -->
         <div class="card">
             <h2 class="text-xl font-semibold text-blue-400 mb-4">📈 Strategy Performance</h2>
@@ -334,15 +347,34 @@
                         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">`;
 
                     for (const game of games) {
-                        // Format start time
+                        // Format start time with date
                         let timeStr = '';
                         if (game.start_time) {
                             const date = new Date(game.start_time);
-                            timeStr = date.toLocaleTimeString('en-US', {
+                            const today = new Date();
+                            const tomorrow = new Date(today);
+                            tomorrow.setDate(tomorrow.getDate() + 1);
+
+                            // Check if it's today, tomorrow, or another day
+                            let datePrefix = '';
+                            if (date.toDateString() === today.toDateString()) {
+                                datePrefix = 'Today';
+                            } else if (date.toDateString() === tomorrow.toDateString()) {
+                                datePrefix = 'Tomorrow';
+                            } else {
+                                datePrefix = date.toLocaleDateString('en-US', {
+                                    weekday: 'short',
+                                    month: 'numeric',
+                                    day: 'numeric'
+                                });
+                            }
+
+                            const timeFormat = date.toLocaleTimeString('en-US', {
                                 hour: 'numeric',
                                 minute: '2-digit',
                                 hour12: true
                             });
+                            timeStr = `${datePrefix} ${timeFormat}`;
                         }
 
                         // Status badge
@@ -406,16 +438,64 @@
             }
         }
 
+        // Fetch and display market prices
+        async function refreshMarkets() {
+            try {
+                const res = await fetch('/api/markets');
+                const data = await res.json();
+                const container = document.getElementById('markets-container');
+
+                if (data.error) {
+                    container.innerHTML = `<div class="text-gray-500 text-center py-4">${data.error}</div>`;
+                    return;
+                }
+
+                if (!data.markets || data.markets.length === 0) {
+                    container.innerHTML = '<div class="text-gray-500 text-center py-4">No sports markets found. Markets appear when Kalshi has active sports events.</div>';
+                    return;
+                }
+
+                let html = '<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">';
+                for (const market of data.markets) {
+                    const probClass = market.implied_prob >= 50 ? 'text-green-400' : 'text-red-400';
+                    html += `
+                        <div class="bg-gray-700 rounded p-3">
+                            <div class="font-bold text-sm text-gray-200 truncate" title="${market.title}">
+                                ${market.ticker}
+                            </div>
+                            <div class="text-xs text-gray-400 truncate mt-1">${market.title}</div>
+                            <div class="flex justify-between items-center mt-2">
+                                <div>
+                                    <span class="text-green-400">YES:</span> ${market.yes_bid}¢/${market.yes_ask}¢
+                                </div>
+                                <div class="${probClass} font-bold">
+                                    ${market.implied_prob}%
+                                </div>
+                            </div>
+                            <div class="text-xs text-gray-500 mt-1">
+                                Vol: ${market.volume?.toLocaleString() || 0}
+                            </div>
+                        </div>`;
+                }
+                html += '</div>';
+                container.innerHTML = html;
+            } catch (e) {
+                console.error('Error fetching markets:', e);
+            }
+        }
+
         // Initial load and periodic refresh
         refreshGames();
         refreshScheduled();
         refreshTrades();
+        refreshMarkets();
         refreshPerformance();
         refreshStatus();
 
         setInterval(refreshGames, 15000);
         setInterval(refreshScheduled, 60000);
         setInterval(refreshTrades, 10000);
+        setInterval(refreshMarkets, 30000);
         setInterval(refreshPerformance, 30000);
         setInterval(refreshStatus, 5000);
     </script>

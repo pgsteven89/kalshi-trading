@@ -220,6 +220,45 @@ async def get_recent_trades(limit: int = 20) -> dict:
     return {"trades": trades}
 
 
+@app.get("/api/markets")
+async def get_market_prices() -> dict:
+    """Get current Kalshi market prices."""
+    if not state.kalshi:
+        return {"error": "Kalshi not connected", "markets": []}
+    
+    try:
+        markets_response = await state.kalshi.get_markets(status="open")
+        
+        # Filter to sports-related markets
+        sports_prefixes = ["NFL", "NBA", "CFB", "NCAAF", "COLLEGE"]
+        result = []
+        
+        for market in markets_response.markets:
+            ticker_upper = market.ticker.upper()
+            if any(ticker_upper.startswith(prefix) for prefix in sports_prefixes):
+                # Calculate implied probability
+                yes_mid = (market.yes_bid + market.yes_ask) / 2 if market.yes_bid else market.yes_ask
+                
+                result.append({
+                    "ticker": market.ticker,
+                    "title": market.title,
+                    "yes_bid": market.yes_bid,
+                    "yes_ask": market.yes_ask,
+                    "no_bid": market.no_bid,
+                    "no_ask": market.no_ask,
+                    "volume": market.volume,
+                    "implied_prob": round(yes_mid) if yes_mid else 0,
+                })
+        
+        return {
+            "markets": result,
+            "count": len(result),
+            "timestamp": datetime.now().isoformat(),
+        }
+    except Exception as e:
+        return {"error": str(e), "markets": []}
+
+
 @app.get("/api/performance")
 async def get_performance() -> dict:
     """Get overall performance metrics."""
