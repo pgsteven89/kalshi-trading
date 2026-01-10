@@ -60,7 +60,7 @@ class KalshiClient:
 
     ENVIRONMENTS = {
         "sandbox": "https://demo.kalshi.com/trade-api/v2",
-        "production": "https://trading-api.kalshi.com/trade-api/v2",
+        "production": "https://api.elections.kalshi.com/trade-api/v2",
     }
 
     def __init__(
