@@ -251,6 +251,12 @@ async def get_market_prices() -> dict:
         sports_prefixes = ["NFL", "NBA", "CFB", "NCAAF", "COLLEGE"]
         result = []
         
+        # DEBUG: Print first 5 tickers to see what we're getting
+        if markets_response.markets:
+            print(f"DEBUG: Found {len(markets_response.markets)} markets. First 5 tickers:")
+            for m in markets_response.markets[:5]:
+                print(f"  - {m.ticker}: {m.status}, {m.yes_bid}/{m.yes_ask}")
+
         for market in markets_response.markets:
             ticker_upper = market.ticker.upper()
             if any(ticker_upper.startswith(prefix) for prefix in sports_prefixes):
