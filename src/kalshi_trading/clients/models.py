@@ -40,6 +40,7 @@ class MarketStatus(str, Enum):
     """Market status."""
 
     OPEN = "open"
+    ACTIVE = "active"  # New status in Kalshi API
     CLOSED = "closed"
     SETTLED = "settled"
 
