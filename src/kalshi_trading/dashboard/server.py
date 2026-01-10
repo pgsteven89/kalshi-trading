@@ -245,21 +245,22 @@ async def get_market_prices() -> dict:
         return {"error": "Kalshi not connected", "markets": []}
     
     try:
-        markets_response = await state.kalshi.get_markets(status="open")
+        # Remove status filter and just get everything (limit=1000)
+        markets_response = await state.kalshi.get_markets(limit=1000)
         
         # Filter to sports-related markets
         sports_prefixes = ["NFL", "NBA", "CFB", "NCAAF", "COLLEGE"]
         result = []
         
-        # DEBUG: Print first 5 tickers to see what we're getting
+        # DEBUG: Print summary to terminal
+        print(f"DEBUG: Found {len(markets_response.markets)} markets from API")
         if markets_response.markets:
-            print(f"DEBUG: Found {len(markets_response.markets)} markets. First 5 tickers:")
-            for m in markets_response.markets[:5]:
-                print(f"  - {m.ticker}: {m.status}, {m.yes_bid}/{m.yes_ask}")
+            print(f"DEBUG: First market: {markets_response.markets[0].ticker} ({markets_response.markets[0].status})")
 
         for market in markets_response.markets:
             ticker_upper = market.ticker.upper()
-            if any(ticker_upper.startswith(prefix) for prefix in sports_prefixes):
+            # Check if sport is in ticker (e.g. KXMVE-NBA-...)
+            if any(prefix in ticker_upper for prefix in sports_prefixes):
                 # Calculate implied probability
                 yes_mid = (market.yes_bid + market.yes_ask) / 2 if market.yes_bid else market.yes_ask
                 
