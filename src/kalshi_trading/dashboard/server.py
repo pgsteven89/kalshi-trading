@@ -17,6 +17,24 @@ from kalshi_trading.clients.kalshi import KalshiClient
 from kalshi_trading.monitoring.database import TradingDatabase
 
 
+# Load .env file if it exists
+def _load_dotenv() -> None:
+    """Load environment variables from .env file."""
+    env_file = Path.cwd() / ".env"
+    if env_file.exists():
+        with open(env_file) as f:
+            for line in f:
+                line = line.strip()
+                if line and not line.startswith("#") and "=" in line:
+                    key, _, value = line.partition("=")
+                    key = key.strip()
+                    value = value.strip().strip('"').strip("'")
+                    if key and key not in os.environ:  # Don't override existing
+                        os.environ[key] = value
+
+_load_dotenv()
+
+
 # App state
 class AppState:
     db: TradingDatabase
