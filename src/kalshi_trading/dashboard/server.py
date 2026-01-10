@@ -205,8 +205,8 @@ async def get_scheduled_games() -> dict:
                 total_checked += len(scoreboard)
                 scheduled = []
                 for game in scoreboard:
-                    # Include games that haven't finished
-                    if game.status.value in ["pre", "in"]:
+                    # Include games that haven't started yet
+                    if game.status.value == "pre":
                         scheduled.append({
                             "event_id": game.event_id,
                             "matchup": f"{game.away_team.abbreviation} @ {game.home_team.abbreviation}",
